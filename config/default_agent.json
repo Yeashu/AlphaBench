@@ -1,5 +1,5 @@
 {
-  "model_name": "gpt-4o",
+  "model_name": "deepseek/deepseek-v4-flash",
   "max_turns": 100,
   "max_trials": 200,
   "temperature": 0.7,
