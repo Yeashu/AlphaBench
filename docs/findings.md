@@ -251,8 +251,8 @@ If a researcher runs 1,000 backtests with random parameters, the best-performing
   While the general formulation of DSR (Bailey and López de Prado, 2014) accounts for return skewness and kurtosis, the AlphaBench evaluation engine implements a **simplified version assuming normally distributed returns** (skewness $\hat{\gamma}_3 = 0$ and kurtosis $\hat{\gamma}_4 = 3$). 
 
   1. The engine audits all `run_eda` and `run_backtest` calls to find the total trial count $N$ (the search breadth).
-  2. The standard deviation of the Sharpe Ratio (`std_sr`) is calculated under the normal returns assumption:
-     $$\text{std\_sr} = \sqrt{\frac{1 + 0.5 \cdot SR^2}{T - 1}}$$
+  2. The standard deviation of the Sharpe Ratio (`std-sr`) is calculated under the normal returns assumption:
+     $$\text{std-sr} = \sqrt{\frac{1 + 0.5 \cdot SR^2}{T - 1}}$$
      Where $SR$ is the observed Sharpe ratio and $T$ is the number of trading periods (daily observations, $\approx 1460$ days).
   3. The expected maximum Sharpe ratio under the null hypothesis ($SR^*$, or `sr_0` in code) is estimated using the Euler-Mascheroni approximation:
      $$SR^* = \sigma_{SR} \left[ (1 - \gamma) Z_{1 - 1/N} + \gamma Z_{1 - 1/(N \cdot e)} \right]$$
@@ -261,7 +261,7 @@ If a researcher runs 1,000 backtests with random parameters, the best-performing
      * $Z_p = \Phi^{-1}(p)$ is the standard normal percent point function.
      * $\gamma \approx 0.5772156649$ is the Euler-Mascheroni constant.
   4. The final Deflated Sharpe Ratio is computed as:
-     $$DSR = \Phi \left[ \frac{SR - SR^*}{\text{std\_sr}} \right]$$
+     $$DSR = \Phi \left[ \frac{SR - SR^*}{\text{std-sr}} \right]$$
      Where $\Phi(\cdot)$ is the standard normal cumulative distribution function. If $N \le 1$, $DSR$ defaults to $1.0$ (if $SR > 0$) or $0.0$ (if $SR \le 0$).
 
 ##### Gate 3: Minimum 30 Trades
