@@ -1,0 +1,8 @@
+{
+  "model_name": "deepseek/deepseek-v4-pro",
+  "max_turns": 35,
+  "max_trials": 15,
+  "temperature": 0.7,
+  "max_context_tokens": 100000,
+  "system_prompt_version": "v6.0.0"
+}
