@@ -38,14 +38,14 @@ _DEFAULT_AGENT_CONFIG = {
 }
 
 _DEFAULT_TASK = {
-    "task_id": "crypto_perps_v1",
-    "market": "crypto_perpetuals",
+    "task_id": "crypto_spot_v1",
+    "market": "crypto_spot",
     "asset_universe": ["BTC-USDT"],
     "dataset_version": "v1",
     "train_start": "2021-01-01",
-    "train_end": "2025-12-31",
-    "oos_start": "2026-01-01",
-    "oos_end": "2026-12-31",
+    "train_end": "2024-12-31",
+    "oos_start": "2025-01-01",
+    "oos_end": "2025-12-31",
 }
 
 
