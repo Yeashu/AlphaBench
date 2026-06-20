@@ -36,11 +36,11 @@ from .backtest_engine import BacktestEngine
 from .backtest_registry import BacktestRegistry
 from .contracts import (
     AgentConfig,
-    CostSummary,
     Hypothesis,
     RunManifest,
     StrategyArtifact,
     TaskDefinition,
+    TokenUsage,
 )
 from .dataset_service import DatasetService
 from .prompts import format_prompt
@@ -58,8 +58,8 @@ _TOOLS: list[dict] = [
         "type": "function",
         "function": {
             "name": "list_assets",
-            "description": "List all available asset IDs in the dataset.",
-            "parameters": {"type": "object", "properties": {}, "required": []},
+            "description": "List all available asset IDs in the dataset. Call with no arguments: list_assets()",
+            "parameters": {"type": "object", "properties": {}, "required": [], "additionalProperties": False},
         },
     },
     {
@@ -303,20 +303,6 @@ _TOOLS: list[dict] = [
     },
 ]
 
-# ---------------------------------------------------------------------------
-# Pricing table for cost estimation (USD per 1K tokens)
-# ---------------------------------------------------------------------------
-
-_COST_PER_1K: dict[str, dict[str, float]] = {
-    "gpt-4o": {"input": 0.005, "output": 0.015},
-    "gpt-4o-mini": {"input": 0.00015, "output": 0.0006},
-    "gpt-4-turbo": {"input": 0.01, "output": 0.03},
-    "o1": {"input": 0.015, "output": 0.060},
-    "o1-mini": {"input": 0.003, "output": 0.012},
-}
-
-_DEFAULT_COST = {"input": 0.005, "output": 0.015}
-
 # Context trimming: keep this many recent tool results when trimming
 _KEEP_RECENT_TOOL_RESULTS = 5
 
@@ -367,7 +353,7 @@ class AgentRuntime:
         self._artifacts: dict[str, StrategyArtifact] = {}  # strategy_id → artifact
         self._final_strategy_id: str | None = None
         self._checkpoint_strategy_id: str | None = None
-        self._cost = CostSummary(0, 0, 0, 0.0)
+        self._token_usage = TokenUsage(0, 0, 0)
         self._started_at: float = 0.0
         self._hypotheses: dict[str, Hypothesis] = {}
 
@@ -414,7 +400,7 @@ class AgentRuntime:
         while turn < self._config.max_turns:
 
             # Context trimming check
-            if self._cost.total_tokens > self._config.max_context_tokens * _TRIM_THRESHOLD:
+            if self._token_usage.total_tokens > self._config.max_context_tokens * _TRIM_THRESHOLD:
                 messages = _trim_context(messages)
 
             # LLM call
@@ -436,17 +422,26 @@ class AgentRuntime:
                 )
                 break
 
-            # Accumulate cost
+            # Accumulate token usage
             if response.usage:
-                self._cost = _accumulate_cost(
-                    self._cost,
+                self._token_usage = _accumulate_token_usage(
+                    self._token_usage,
                     response.usage.prompt_tokens,
                     response.usage.completion_tokens,
-                    self._config.model_name,
                 )
-                self._logger.log_cost_update(self._cost, turn_index=turn)
+                self._logger.log_token_update(self._token_usage, turn_index=turn)
+
+            if not response.choices:
+                self._logger.log_agent_turn(
+                    role="error",
+                    content=f"API returned response with no choices. Full response: {response}",
+                    token_count=0,
+                    turn_index=turn,
+                )
+                break
 
             msg = response.choices[0].message
+
 
             # Log the assistant turn
             self._logger.log_agent_turn(
@@ -588,7 +583,7 @@ class AgentRuntime:
             task=self._task,
             config=self._config,
             prompt_version=prompt_version,
-            cost_summary=self._cost,
+            token_usage=self._token_usage,
             started_at=self._started_at,
             finished_at=time.time(),
             total_trials=self._ledger.count(),
@@ -611,10 +606,22 @@ class AgentRuntime:
 
     def _dispatch_tool(self, name: str, arguments_json: str) -> str:
         """Route a tool call to the appropriate handler. Returns a string result."""
-        try:
-            args: dict = json.loads(arguments_json) if arguments_json else {}
-        except json.JSONDecodeError:
-            return json.dumps({"error": "Invalid JSON arguments"})
+        # Some models (e.g. deepseek) emit trailing garbage after the JSON object,
+        # e.g. '{}""'. Strip whitespace and attempt to parse just the leading object.
+        raw = (arguments_json or "").strip()
+        args: dict = {}
+        if raw:
+            try:
+                args = json.loads(raw)
+            except json.JSONDecodeError:
+                # Try to salvage by taking only up to the first closing brace
+                try:
+                    brace_end = raw.index("}") + 1
+                    args = json.loads(raw[:brace_end])
+                except (ValueError, json.JSONDecodeError):
+                    # For no-arg tools it's safe to proceed with empty args;
+                    # for tools that require args this will surface as a missing-arg error.
+                    args = {}
 
         handlers = {
             "list_assets": self._tool_list_assets,
@@ -848,48 +855,61 @@ class AgentRuntime:
 # ---------------------------------------------------------------------------
 
 
-def _accumulate_cost(
-    current: CostSummary,
+def _accumulate_token_usage(
+    current: TokenUsage,
     prompt_tokens: int,
     completion_tokens: int,
-    model_name: str,
-) -> CostSummary:
-    """Add usage from one LLM call to the running CostSummary."""
-    pricing = _COST_PER_1K.get(model_name, _DEFAULT_COST)
-    cost_increment = (
-        prompt_tokens / 1000 * pricing["input"]
-        + completion_tokens / 1000 * pricing["output"]
-    )
-    return CostSummary(
+) -> TokenUsage:
+    """Add usage from one LLM call to the running TokenUsage."""
+    return TokenUsage(
         input_tokens=current.input_tokens + prompt_tokens,
         output_tokens=current.output_tokens + completion_tokens,
         total_tokens=current.total_tokens + prompt_tokens + completion_tokens,
-        estimated_cost_usd=current.estimated_cost_usd + cost_increment,
     )
 
 
 def _trim_context(messages: list[dict]) -> list[dict]:
     """
-    Trim older tool result messages to reduce context size.
+    Trim older messages safely to reduce context size.
 
     Preservation policy:
         - Always keep: system message + first user message
-        - Always keep: last 3 full turn pairs (assistant + tool results)
-        - Drop: older tool result messages in the middle
+        - Keep a safe suffix of the rolling conversation that doesn't split
+          any assistant tool calls from their corresponding tool results.
     """
     if len(messages) <= 6:
         return messages
 
-    # Separate system/initial messages from the rolling conversation
     preamble = messages[:2]  # system + first user
-    rest = messages[2:]
+    conversation = messages[2:]
 
-    # Find tool messages and drop older ones, keeping last N
-    tool_indices = [i for i, m in enumerate(rest) if m.get("role") == "tool"]
-    if len(tool_indices) <= _KEEP_RECENT_TOOL_RESULTS:
+    # Keep a maximum target of messages from the end
+    target_keep = 12
+    if len(conversation) <= target_keep:
         return messages
 
-    # Drop tool messages older than the last _KEEP_RECENT_TOOL_RESULTS
-    cutoff_idx = tool_indices[-_KEEP_RECENT_TOOL_RESULTS]
-    trimmed_rest = [m for i, m in enumerate(rest) if i >= cutoff_idx or m.get("role") != "tool"]
-    return preamble + trimmed_rest
+    cut_idx = len(conversation) - target_keep
+
+    # Walk forward to find a valid cut point that doesn't break API constraints:
+    # 1. The first message in the kept slice must not be a 'tool' message.
+    # 2. The message immediately preceding it must not be an assistant message with tool calls.
+    while cut_idx < len(conversation):
+        msg = conversation[cut_idx]
+        prev_msg = conversation[cut_idx - 1] if cut_idx > 0 else None
+
+        if msg.get("role") == "tool":
+            cut_idx += 1
+            continue
+
+        if prev_msg and prev_msg.get("role") == "assistant" and prev_msg.get("tool_calls"):
+            # Include the assistant message to avoid dangling tool results
+            cut_idx -= 1
+            continue
+
+        break
+
+    if cut_idx >= len(conversation):
+        return messages
+
+    return preamble + conversation[cut_idx:]
+

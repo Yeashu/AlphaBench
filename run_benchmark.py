@@ -165,8 +165,7 @@ def main() -> None:
     print(f"  turns    : {manifest.total_turns}")
     print(f"  trials   : {manifest.total_trials}")
     print(f"  backtests: {manifest.total_backtests}")
-    print(f"  tokens   : {manifest.cost_summary.total_tokens:,}")
-    print(f"  cost     : ${manifest.cost_summary.estimated_cost_usd:.4f}")
+    print(f"  tokens   : {manifest.token_usage.total_tokens:,}")
     print(f"  final    : {manifest.final_strategy_id or 'none submitted'}")
 
     # --- Evaluation ---

@@ -19,7 +19,7 @@ Event types:
     strategy_submit  — a StrategyArtifact submitted by the agent
     eval_result      — an EvalResult from EvaluationEngine
     budget_warning   — injected when trial budget is exhausted
-    cost_update      — running CostSummary after each LLM call
+    token_update     — running TokenUsage after each LLM call
     run_complete     — final RunManifest at end of run
 
 LangSmith is NOT used. All observability is local NDJSON only.
@@ -34,11 +34,11 @@ from pathlib import Path
 
 from .contracts import (
     BacktestResult,
-    CostSummary,
     EvalResult,
     Hypothesis,
     RunManifest,
     StrategyArtifact,
+    TokenUsage,
     TrialEntry,
 )
 
@@ -131,11 +131,11 @@ class RunLogger:
             },
         )
 
-    def log_cost_update(self, cost: CostSummary, turn_index: int) -> None:
+    def log_token_update(self, token_usage: TokenUsage, turn_index: int) -> None:
         self._write(
-            "cost_update",
+            "token_update",
             {
-                **asdict(cost),
+                **asdict(token_usage),
                 "turn_index": turn_index,
             },
         )

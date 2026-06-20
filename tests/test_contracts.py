@@ -5,13 +5,13 @@ from alphabench.contracts import (
     AssetMetadata,
     BacktestRecord,
     BacktestResult,
-    CostSummary,
     EvalResult,
     ExecutionResult,
     PromptVersion,
     RunManifest,
     StrategyArtifact,
     TaskDefinition,
+    TokenUsage,
     TrialEntry,
 )
 
@@ -49,9 +49,9 @@ def test_prompt_version():
     assert pv.version == "v1.0.0"
 
 
-def test_cost_summary():
-    cs = CostSummary(input_tokens=100, output_tokens=50, total_tokens=150, estimated_cost_usd=0.001)
-    assert cs.total_tokens == 150
+def test_token_usage():
+    tu = TokenUsage(input_tokens=100, output_tokens=50, total_tokens=150)
+    assert tu.total_tokens == 150
 
 
 def test_run_manifest_structure():
@@ -65,10 +65,10 @@ def test_run_manifest_structure():
         temperature=0.2, max_context_tokens=100_000, system_prompt_version="v1.0.0",
     )
     pv = PromptVersion(prompt_id="system_prompt", version="v1.0.0", sha256="abc", created_at="now")
-    cs = CostSummary(0, 0, 0, 0.0)
+    tu = TokenUsage(0, 0, 0)
 
     manifest = RunManifest(
-        run_id="r1", task=task, config=config, prompt_version=pv, cost_summary=cs,
+        run_id="r1", task=task, config=config, prompt_version=pv, token_usage=tu,
         started_at=0.0, finished_at=1.0, total_trials=5, total_backtests=3,
         total_turns=10, final_strategy_id="s1", eval_result=None,
     )

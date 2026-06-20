@@ -206,16 +206,15 @@ class PromptVersion:
 
 
 @dataclass
-class CostSummary:
+class TokenUsage:
     """
-    Accumulated token usage and estimated USD cost for a run.
+    Accumulated token usage for a run.
     Updated after each LLM call by AgentRuntime.
     """
 
     input_tokens: int
     output_tokens: int
     total_tokens: int
-    estimated_cost_usd: float
 
 
 # ---------------------------------------------------------------------------
@@ -234,7 +233,7 @@ class RunManifest:
     task: TaskDefinition
     config: AgentConfig
     prompt_version: PromptVersion
-    cost_summary: CostSummary
+    token_usage: TokenUsage
     started_at: float
     finished_at: float
     total_trials: int

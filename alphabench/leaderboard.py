@@ -35,7 +35,6 @@ class LeaderboardRow:
     backtest_count: int
     total_turns: int
     total_tokens: int
-    estimated_cost_usd: float
     prompt_version: str
     strategy_id: str
 
@@ -101,6 +100,7 @@ class LeaderboardService:
                 continue
 
             backtest_count = _get_backtest_count(self._backtest_db, manifest["run_id"])
+            token_usage = manifest.get("token_usage") or manifest.get("cost_summary") or {}
 
             rows.append(
                 LeaderboardRow(
@@ -114,8 +114,7 @@ class LeaderboardService:
                     trial_count=manifest.get("total_trials", 0),
                     backtest_count=backtest_count,
                     total_turns=manifest.get("total_turns", 0),
-                    total_tokens=manifest.get("cost_summary", {}).get("total_tokens", 0),
-                    estimated_cost_usd=manifest.get("cost_summary", {}).get("estimated_cost_usd", 0.0),
+                    total_tokens=token_usage.get("total_tokens", 0),
                     prompt_version=manifest.get("prompt_version", {}).get("version", "unknown"),
                     strategy_id=eval_result.get("strategy_id", "unknown"),
                 )
@@ -145,7 +144,6 @@ class LeaderboardService:
                     backtest_count INTEGER,
                     total_turns INTEGER,
                     total_tokens INTEGER,
-                    estimated_cost_usd REAL,
                     prompt_version TEXT,
                     strategy_id TEXT
                 )
@@ -153,14 +151,14 @@ class LeaderboardService:
             conn.executemany(
                 """
                 INSERT INTO leaderboard VALUES
-                (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                (?,?,?,?,?,?,?,?,?,?,?,?,?)
                 """,
                 [
                     (
                         r.rank, r.run_id, r.task_id, r.model_name,
                         r.oos_sharpe, r.dsr, r.permutation_pvalue,
                         r.trial_count, r.backtest_count, r.total_turns,
-                        r.total_tokens, r.estimated_cost_usd,
+                        r.total_tokens,
                         r.prompt_version, r.strategy_id,
                     )
                     for r in rows
@@ -236,7 +234,6 @@ def _render_html(rows: list[LeaderboardRow]) -> str:
             <td>{r.backtest_count}</td>
             <td>{r.total_turns}</td>
             <td>{r.total_tokens:,}</td>
-            <td>${r.estimated_cost_usd:.4f}</td>
             <td>{r.prompt_version}</td>
         </tr>"""
 
@@ -275,12 +272,11 @@ def _render_html(rows: list[LeaderboardRow]) -> str:
         <th>Backtests</th>
         <th>Turns</th>
         <th>Tokens</th>
-        <th>Cost (USD)</th>
         <th>Prompt</th>
       </tr>
     </thead>
     <tbody>
-      {"".join([rows_html]) if rows else '<tr><td colspan="13" class="empty">No qualifying strategies yet.</td></tr>'}
+      {"".join([rows_html]) if rows else '<tr><td colspan="12" class="empty">No qualifying strategies yet.</td></tr>'}
     </tbody>
   </table>
 </body>
