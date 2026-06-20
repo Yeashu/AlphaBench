@@ -1,0 +1,8 @@
+{
+  "model_name": "nex-agi/nex-n2-pro:free",
+  "max_turns": 25,
+  "max_trials": 25,
+  "temperature": 0.6,
+  "max_context_tokens": 100000,
+  "system_prompt_version": "v5.6.0"
+}
