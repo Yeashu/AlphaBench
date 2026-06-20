@@ -1,0 +1,52 @@
+{
+  "version": "v1",
+  "created_at": "2026-06-06T11:36:34Z",
+  "training_end": "2024-12-31",
+  "assets": [
+    {
+      "asset_id": "BTC-USDT",
+      "exchange": "binance",
+      "instrument_type": "spot",
+      "base_currency": "USDT",
+      "available_from": "2021-01-01",
+      "available_to": "2024-12-31",
+      "fields": [
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume"
+      ]
+    },
+    {
+      "asset_id": "ETH-USDT",
+      "exchange": "binance",
+      "instrument_type": "spot",
+      "base_currency": "USDT",
+      "available_from": "2021-01-01",
+      "available_to": "2024-12-31",
+      "fields": [
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume"
+      ]
+    },
+    {
+      "asset_id": "SOL-USDT",
+      "exchange": "binance",
+      "instrument_type": "spot",
+      "base_currency": "USDT",
+      "available_from": "2021-01-01",
+      "available_to": "2024-12-31",
+      "fields": [
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume"
+      ]
+    }
+  ]
+}
